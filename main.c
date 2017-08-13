@@ -22,7 +22,7 @@ volatile char RX_FLAG_END_LINE = 0;
 volatile char RXi;
 volatile char RXc;
  char RX_BUF[RX_BUF_SIZE] = {'\0'};
- char buffer[80] = {'\0'};
+ char buffer[180] = {'\0'};
 
 void clear_RXBuffer(void) {
 	for (RXi=0; RXi<RX_BUF_SIZE; RXi++)
@@ -164,7 +164,7 @@ void TIM4_IRQHandler(void)
 	}
 }
 
-void usart_init(void)
+void usart1_init(void)
 {
 	    /* Enable USART1 and GPIOA clock */
 	    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);
@@ -227,14 +227,16 @@ void usart_init(void)
 	    //USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 }
 
+uint32_t latency = 0; //115200 72MHZ = 114
+
 void USARTSend(char *pucBuffer)
 {
+	
     while (*pucBuffer)
     {
+			  latency = 0;
         USART_SendData(USART1, *pucBuffer++);
-        while(USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET)
-        {
-        }
+        while(USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET){ latency++; }
     }
 }
 
@@ -376,36 +378,10 @@ void Timer4_init(void)
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 }
-//=================================================================================
-	//----------------
-	extern volatile uint8_t Receive_Buffer[64];
-	extern volatile uint32_t Receive_length ;
-	extern volatile uint32_t length ;
-	uint8_t Send_Buffer[64];
-	uint32_t packet_sent=1;
-	uint32_t packet_receive=1;
 
-	  // Initialize Leds mounted on STM32 board
-	GPIO_InitTypeDef  GPIO_InitStructure;
-	/*RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(GPIOC, &GPIO_InitStructure);
-	GPIO_SetBits(GPIOC, GPIO_Pin_13);*/
-
-int main(void)
-{
-	char buffer[80] = {'\0'};
-
-	Set_System(); //---
-	SetSysClockTo72();
-
-
-    //usart_init(); //USART
-	//*
-	
-		// Initialize LED which connected to PC13  
+void Led_init(void)  // Initialize Leds mounted on STM32 MappleMini board
+{		
+	// Initialize LED which connected to PC13  
 	GPIO_InitTypeDef  GPIO_InitStructure;
 	// Enable PORTC Clock
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
@@ -416,42 +392,42 @@ int main(void)
 	GPIO_Init(GPIOC, &GPIO_InitStructure);
 
 	GPIO_ResetBits(GPIOC, GPIO_Pin_13); // Set C13 to Low level ("0")
+}
 
-    // Initialize USART
-    usart_dma_init();
-    USARTSendDMA("Hello.\r\nUSART1 is ready.\r\n");
+void Led_ON(void)
+{
+	GPIO_ResetBits(GPIOC, GPIO_Pin_13);
+}
+
+void Led_OFF(void)
+{
+	GPIO_SetBits(GPIOC, GPIO_Pin_13);
+}
+//=================================================================================
+	//----------------
+	extern volatile uint8_t Receive_Buffer[64];
+	extern volatile uint32_t Receive_length ;
+	extern volatile uint32_t length ;
+	uint8_t Send_Buffer[64];
+	uint32_t packet_sent=1;
+	uint32_t packet_receive=1;
+
+int main(void)
+{
+	char buffer[80] = {'\0'};
+
+	Set_System(); //---
+	SetSysClockTo72();
 	
-	 while (1)
-    {
-    	if (RX_FLAG_END_LINE == 1) 
-				{
-    		// Reset END_LINE Flag
-    		RX_FLAG_END_LINE = 0;
+	Led_init();
 
-    		/* !!! This lines is not have effect. Just a last command USARTSendDMA(":\r\n"); !!!! */
-    		USARTSendDMA("\r\nI has received a line:\r\n"); // no effect
-    		USARTSendDMA(RX_BUF); // no effect
-    		USARTSendDMA(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
 
-    		if (strncmp(RX_BUF, "ON\r", 3) == 0) 
-				{
-    			USARTSendDMA("THIS IS A COMMAND \"ON\"!!!\r\n");
-    			GPIO_ResetBits(GPIOC, GPIO_Pin_13);
-    		}
 
-    		if (strncmp(RX_BUF, "OFF\r", 4) == 0) 
-				{
-    			USARTSendDMA("THIS IS A COMMAND \"OFF\"!!!\r\n");
-    			GPIO_SetBits(GPIOC, GPIO_Pin_13);
-    		}
-
-    		clear_RXBuffer();
-    	}
-    }
-		
-	//*/
     ADC_DMA_init();//ADC
-
+	
+    // Initialize USART
+    //usart1_init();
+	usart_dma_init();
    //Timer4_init();
 
 
@@ -462,6 +438,31 @@ int main(void)
     while (1)
     {
 
+			 if (RX_FLAG_END_LINE == 1) 
+				{
+    		// Reset END_LINE Flag
+    		RX_FLAG_END_LINE = 0;
+
+    		/* !!! This lines is not have effect. Just a last command USARTSendDMA(":\r\n"); !!!! */
+    		USARTSend("\r\nI has received a line:\r\n"); // no effect
+    		USARTSend(RX_BUF); // no effect
+    		USARTSend(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
+
+    		if (strncmp(RX_BUF, "ON\r", 3) == 0) 
+				{
+    			USARTSend("THIS IS A COMMAND \"ON\"!!!\r\n");
+    			Led_ON();
+    		}
+
+    		if (strncmp(RX_BUF, "OFF\r", 4) == 0) 
+				{
+    			USARTSend("THIS IS A COMMAND \"OFF\"!!!\r\n");
+    			Led_OFF();
+    		}
+
+    		clear_RXBuffer();
+    	}
+				
     		sprintf(buffer, "\r\n1=%d : 2=%d : 3=%d : 4=%d\r\n", ADCBuffer[0], ADCBuffer[1], ADCBuffer[2], ADCBuffer[3]);
 			//sprintf(buffer, "$%d, %d, %d, %d, %d, %d;", ADCBuffer[0]-2000, ADCBuffer[1]-2000, ADCBuffer[2]-2000, ADCBuffer[3]-2000, (ADCBuffer[1]+ADCBuffer[2])/2-2000, ADCBuffer[2]/ADCBuffer[3]);
     	USARTSend(buffer);
@@ -473,6 +474,7 @@ int main(void)
 		 CDC_Send_DATA ((uint8_t*)buffer,40);
 			for(int i = 0; i<2000; i++){}
 	}
+		
 	if (bDeviceState == CONFIGURED)
     {
       CDC_Receive_DATA();
