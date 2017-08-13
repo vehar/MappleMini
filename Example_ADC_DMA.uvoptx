@@ -141,7 +141,7 @@
         <sRfunc>1</sRfunc>
         <sRbox>1</sRbox>
         <tLdApp>1</tLdApp>
-        <tGomain>0</tGomain>
+        <tGomain>1</tGomain>
         <tRbreak>1</tRbreak>
         <tRwatch>1</tRwatch>
         <tRmem>1</tRmem>
@@ -201,34 +201,18 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>252</LineNumber>
+          <LineNumber>455</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134228838</Address>
+          <Address>0</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>A:\РќРѕРІР°СЏ РїР°РїРєР°\!!!MappleMini_VCP+ADC+DMA\VCP+ADC+DMA!!!!!\main.c</Filename>
+          <BreakIfRCount>0</BreakIfRCount>
+          <Filename>.\main.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\Example_ADC_DMA\main.c\252</Expression>
-        </Bp>
-        <Bp>
-          <Number>1</Number>
-          <Type>0</Type>
-          <LineNumber>245</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134228830</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>A:\РќРѕРІР°СЏ РїР°РїРєР°\!!!MappleMini_VCP+ADC+DMA\VCP+ADC+DMA!!!!!\main.c</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression>\\Example_ADC_DMA\main.c\245</Expression>
+          <Expression></Expression>
         </Bp>
       </Breakpoint>
       <Tracepoint>
