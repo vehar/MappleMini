@@ -23,19 +23,36 @@ volatile char RXi;
 volatile char RXc;
  char RX_BUF[RX_BUF_SIZE] = {'\0'};
  char buffer[180] = {'\0'};
-
+ 
+ #define RX_BUF2_SIZE 80
+volatile char RX2_FLAG_END_LINE = 0;
+volatile char RXi2;
+volatile char RXc2;
+ char RX_BUF2[RX_BUF2_SIZE] = {'\0'};
+ char buffer2[180] = {'\0'};
+ 
+ 
 void clear_RXBuffer(void) {
 	for (RXi=0; RXi<RX_BUF_SIZE; RXi++)
 		RX_BUF[RXi] = '\0';
 	RXi = 0;
 }
 
-void usart_dma_init(void)
+void clear_RXBuffer2(void) {
+	for (RXi2=0; RXi2<RX_BUF2_SIZE; RXi2++)
+		RX_BUF2[RXi2] = '\0';
+	RXi2 = 0;
+}
+
+void usart1_dma_init(void)
 {
 	/* Enable USART1 and GPIOA clock */
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
+	//USART1_TX = DMA1_CH4
+	//USART1_RX = DMA1_CH5
+	
 	/* DMA */
 	DMA_InitTypeDef DMA_InitStruct;
 	DMA_InitStruct.DMA_PeripheralBaseAddr = (uint32_t)&(USART1->DR);
@@ -137,7 +154,7 @@ void USART1_IRQHandler(void)
 	}
 }
 
-void USARTSendDMA(char *pucBuffer)
+void USART1_SendDMA(char *pucBuffer)
 {
 	strcpy(buffer, pucBuffer);
 
@@ -151,6 +168,144 @@ void DMA1_Channel4_IRQHandler(void)
 {
 	DMA_ClearITPendingBit(DMA1_IT_TC4);
 	DMA_Cmd(DMA1_Channel4, DISABLE);
+}
+
+//RM http://www.st.com/content/ccc/resource/technical/document/reference_manual/59/b9/ba/7f/11/af/43/d5/CD00171190.pdf/files/CD00171190.pdf/jcr:content/translations/en.CD00171190.pdf 
+void usart2_dma_init(void)
+{
+	/* Enable USART2 and GPIOA clock */
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 | RCC_APB2Periph_GPIOA, ENABLE);
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
+	//USART2_TX = DMA1_CH7
+	//USART2_RX = DMA1_CH6
+	/* DMA */
+	DMA_InitTypeDef DMA_InitStruct;
+	DMA_InitStruct.DMA_PeripheralBaseAddr = (uint32_t)&(USART2->DR);
+	DMA_InitStruct.DMA_MemoryBaseAddr = (uint32_t)&buffer2[0];
+	DMA_InitStruct.DMA_DIR = DMA_DIR_PeripheralDST;
+	DMA_InitStruct.DMA_BufferSize = sizeof(buffer2);
+	DMA_InitStruct.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	DMA_InitStruct.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	DMA_InitStruct.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	DMA_InitStruct.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	DMA_InitStruct.DMA_Mode = DMA_Mode_Normal;
+	DMA_InitStruct.DMA_Priority = DMA_Priority_Low;
+	DMA_InitStruct.DMA_M2M = DMA_M2M_Disable;
+	DMA_Init(DMA1_Channel7, &DMA_InitStruct);
+
+	/* NVIC Configuration */
+	NVIC_InitTypeDef NVIC_InitStructure;
+	/* Enable the USARTx Interrupt */
+	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+
+	/* Configure the GPIOs */
+	GPIO_InitTypeDef GPIO_InitStructure;
+
+	/* Configure USART1 Tx (PA.2) as alternate function push-pull */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+	/* Configure USART1 Rx (PA.3) as input floating */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+	/* Configure the USART2 */
+	USART_InitTypeDef USART_InitStructure;
+
+	/* USART2 configuration ------------------------------------------------------*/
+	/* USART2 configured as follow:
+		- BaudRate = 115200 baud
+		- Word Length = 8 Bits
+		- One Stop Bit
+		- No parity
+		- Hardware flow control disabled (RTS and CTS signals)
+		- Receive and transmit enabled
+		- USART Clock disabled
+		- USART CPOL: Clock is active low
+		- USART CPHA: Data is captured on the middle
+		- USART LastBit: The clock pulse of the last data bit is not output to
+			the SCLK pin
+	 */
+	USART_InitStructure.USART_BaudRate = 115200;
+	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+	USART_InitStructure.USART_StopBits = USART_StopBits_1;
+	USART_InitStructure.USART_Parity = USART_Parity_No;
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+
+	USART_Init(USART2, &USART_InitStructure);
+
+	/* Enable USART2 */
+	USART_Cmd(USART2, ENABLE);
+
+	USART_DMACmd(USART2, USART_DMAReq_Tx, ENABLE);
+	//DMA_Cmd(DMA1_Channel7, ENABLE);
+
+	DMA_ITConfig(DMA1_Channel7, DMA_IT_TC, ENABLE);
+	NVIC_EnableIRQ(DMA1_Channel7_IRQn);
+
+
+	/* Enable the USART1 Receive interrupt: this interrupt is generated when the
+	USART1 receive data register is not empty */
+	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+}
+
+void USART2_IRQHandler(void)
+{
+    if ((USART2->SR & USART_FLAG_RXNE) != (u16)RESET)
+	{
+    		RXc2 = USART_ReceiveData(USART2);
+    		RX_BUF2[RXi2] = RXc2;
+    		RXi2++;
+
+    		if (RXc2 != 13) {
+    			if (RXi2 > RX_BUF2_SIZE-1) {
+    				clear_RXBuffer2();
+    			}
+    		}
+    		else {
+    			RX2_FLAG_END_LINE = 1;
+    		}
+
+			//Echo
+    		USART_SendData(USART2, RXc2);
+	}
+}
+
+void USART2_SendDMA(char *pucBuffer)
+{
+	strcpy(buffer2, pucBuffer);
+
+	/* Restart DMA Channel*/
+	DMA_Cmd(DMA1_Channel7, DISABLE);
+	DMA1_Channel7->CNDTR = strlen(pucBuffer);
+	DMA_Cmd(DMA1_Channel7, ENABLE);
+}
+
+void DMA1_Channel7_IRQHandler(void)
+{
+	DMA_ClearITPendingBit(DMA1_IT_TC7);
+	DMA_Cmd(DMA1_Channel7, DISABLE);
+}
+
+uint32_t latency2 = 0;
+void USART2_Send(char *pucBuffer)
+{
+	
+    while (*pucBuffer)
+    {
+			  latency2 = 0;
+        USART_SendData(USART2, *pucBuffer++);
+        while(USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET){ latency2++; }
+    }
 }
 
 volatile short FLAG_ECHO = 0;
@@ -229,7 +384,7 @@ void usart1_init(void)
 
 uint32_t latency = 0; //115200 72MHZ = 114
 
-void USARTSend(char *pucBuffer)
+void USART1_Send(char *pucBuffer)
 {
 	
     while (*pucBuffer)
@@ -421,13 +576,12 @@ int main(void)
 	
 	Led_init();
 
-
-
     ADC_DMA_init();//ADC
 	
     // Initialize USART
     //usart1_init();
-	usart_dma_init();
+	usart1_dma_init();
+	usart2_dma_init();
    //Timer4_init();
 
 
@@ -435,37 +589,40 @@ int main(void)
 	USB_Interrupts_Config(); //---
 	USB_Init(); //---
 	
+	//while(1){}
+		
     while (1)
     {
 
-			 if (RX_FLAG_END_LINE == 1) 
+			 if (RX2_FLAG_END_LINE == 1) 
 				{
     		// Reset END_LINE Flag
-    		RX_FLAG_END_LINE = 0;
+    		RX2_FLAG_END_LINE = 0;
 
-    		/* !!! This lines is not have effect. Just a last command USARTSendDMA(":\r\n"); !!!! */
-    		USARTSend("\r\nI has received a line:\r\n"); // no effect
-    		USARTSend(RX_BUF); // no effect
-    		USARTSend(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
+    		/* !!! This lines is not have effect. Just a last command USART1_SendDMA(":\r\n"); !!!! */
+    		USART2_Send("\r\nI has received a line:\r\n"); // no effect
+    		USART2_Send(RX_BUF2); // no effect
+    		USART2_Send(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
 
-    		if (strncmp(RX_BUF, "ON\r", 3) == 0) 
+    		if (strncmp(RX_BUF2, "ON\r", 3) == 0) 
 				{
-    			USARTSend("THIS IS A COMMAND \"ON\"!!!\r\n");
+    			USART2_Send("THIS IS A COMMAND \"ON\"!!!\r\n");
     			Led_ON();
     		}
 
-    		if (strncmp(RX_BUF, "OFF\r", 4) == 0) 
+    		if (strncmp(RX_BUF2, "OFF\r", 4) == 0) 
 				{
-    			USARTSend("THIS IS A COMMAND \"OFF\"!!!\r\n");
+    			USART2_Send("THIS IS A COMMAND \"OFF\"!!!\r\n");
     			Led_OFF();
     		}
 
-    		clear_RXBuffer();
+    		clear_RXBuffer2();
     	}
 				
     		sprintf(buffer, "\r\n1=%d : 2=%d : 3=%d : 4=%d\r\n", ADCBuffer[0], ADCBuffer[1], ADCBuffer[2], ADCBuffer[3]);
 			//sprintf(buffer, "$%d, %d, %d, %d, %d, %d;", ADCBuffer[0]-2000, ADCBuffer[1]-2000, ADCBuffer[2]-2000, ADCBuffer[3]-2000, (ADCBuffer[1]+ADCBuffer[2])/2-2000, ADCBuffer[2]/ADCBuffer[3]);
-    	USARTSend(buffer);
+    	USART1_Send(buffer);
+			USART2_Send(buffer);
 
 
 	//----------
