@@ -1,3 +1,7 @@
+//http://microtechnics.ru/mikrokontroller-stm32-i-usb/
+//http://microtechnics.ru/stm32-peredacha-dannyx-po-usb/
+//!!! https://myrobot.ru/forum/topic.php?forum=3&topic=501
+
 #include "stm32f10x.h"
 #include "stm32f10x_gpio.h"
 #include "stm32f10x_rcc.h"
@@ -17,19 +21,19 @@
 #include "usb_pwr.h"
 
 
-#define RX_BUF_SIZE 80
+#define RX_BUF_SIZE 256
 volatile char RX_FLAG_END_LINE = 0;
 volatile char RXi;
 volatile char RXc;
  char RX_BUF[RX_BUF_SIZE] = {'\0'};
- char buffer[180] = {'\0'};
+ char buffer[RX_BUF_SIZE] = {'\0'};
  
- #define RX_BUF2_SIZE 80
+ #define RX_BUF2_SIZE 256
 volatile char RX2_FLAG_END_LINE = 0;
 volatile char RXi2;
 volatile char RXc2;
  char RX_BUF2[RX_BUF2_SIZE] = {'\0'};
- char buffer2[180] = {'\0'};
+ char buffer2[RX_BUF2_SIZE] = {'\0'};
  
  
 void clear_RXBuffer(void) {
@@ -132,27 +136,7 @@ void usart1_dma_init(void)
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 }
 
-void USART1_IRQHandler(void)
-{
-    if ((USART1->SR & USART_FLAG_RXNE) != (u16)RESET)
-	{
-    		RXc = USART_ReceiveData(USART1);
-    		RX_BUF[RXi] = RXc;
-    		RXi++;
 
-    		if (RXc != 13) {
-    			if (RXi > RX_BUF_SIZE-1) {
-    				clear_RXBuffer();
-    			}
-    		}
-    		else {
-    			RX_FLAG_END_LINE = 1;
-    		}
-
-			//Echo
-    		USART_SendData(USART1, RXc);
-	}
-}
 
 void USART1_SendDMA(char *pucBuffer)
 {
@@ -258,11 +242,44 @@ void usart2_dma_init(void)
 	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
 }
 
+void USART1_IRQHandler(void)
+{
+    if ((USART1->SR & USART_FLAG_RXNE) != (u16)RESET)
+	{
+    		/*RXc = USART_ReceiveData(USART1);
+    		RX_BUF[RXi] = RXc;
+    		RXi++;
+
+    		if (RXc != 13) {
+    			if (RXi > RX_BUF_SIZE-1) {
+    				clear_RXBuffer();
+    			}
+    		}
+    		else {
+    			RX_FLAG_END_LINE = 1;
+    		}*/
+
+		/* Send the received data to the PC Host*/
+    RXc = USART_To_USB_Send_Data(USART1);
+		USART_SendData(USART2, RXc);		
+		
+			//Echo
+    		USART_SendData(USART1, RXc);
+	}
+	
+		  /* If overrun condition occurs, clear the ORE flag and recover communication */  
+  if (USART_GetFlagStatus(USART1, USART_FLAG_ORE) != RESET)
+  {
+    (void)USART_ReceiveData(USART1);
+  }
+}
+
 void USART2_IRQHandler(void)
 {
-    if ((USART2->SR & USART_FLAG_RXNE) != (u16)RESET)
+	
+  if ((USART2->SR & USART_FLAG_RXNE) != (u16)RESET)
 	{
-    		RXc2 = USART_ReceiveData(USART2);
+    		/*RXc2 = USART_ReceiveData(USART2);
     		RX_BUF2[RXi2] = RXc2;
     		RXi2++;
 
@@ -273,11 +290,21 @@ void USART2_IRQHandler(void)
     		}
     		else {
     			RX2_FLAG_END_LINE = 1;
-    		}
-
+    		}*/
+				
+    /* Send the received data to the PC Host*/
+    RXc2 = USART_To_USB_Send_Data(USART2);
+		USART_SendData(USART1, RXc2);		
+				
 			//Echo
     		USART_SendData(USART2, RXc2);
 	}
+	
+	  /* If overrun condition occurs, clear the ORE flag and recover communication */  
+  if (USART_GetFlagStatus(USART2, USART_FLAG_ORE) != RESET)
+  {
+    (void)USART_ReceiveData(USART2);
+  }
 }
 
 void USART2_SendDMA(char *pucBuffer)
@@ -576,7 +603,7 @@ int main(void)
 	
 	Led_init();
 
-    ADC_DMA_init();//ADC
+    //ADC_DMA_init();//ADC
 	
     // Initialize USART
     //usart1_init();
@@ -589,11 +616,36 @@ int main(void)
 	USB_Interrupts_Config(); //---
 	USB_Init(); //---
 	
-	//while(1){}
-		
+		while(1){}
     while (1)
     {
 
+			// from UART 1
+			if (RX_FLAG_END_LINE == 1) 
+			{
+    		// Reset END_LINE Flag
+    		RX_FLAG_END_LINE = 0;
+
+    		/* !!! This lines is not have effect. Just a last command USART1_SendDMA(":\r\n"); !!!! */
+    		USART1_Send("\r\nI has received a line:\r\n"); // no effect
+    		USART1_Send(RX_BUF2); // no effect
+    		USART1_Send(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
+
+				USART2_Send(RX_BUF2);
+				if (bDeviceState == CONFIGURED)
+				{
+					CDC_Send_DATA ((uint8_t*)RX_BUF2,RXi2);
+				}
+		
+				/*	if (strncmp(RX_BUF2, "ON\r", 3) == 0) 
+				{
+    			USART2_Send("THIS IS A COMMAND \"ON\"!!!\r\n");
+    			Led_ON();
+    		}*/
+    		clear_RXBuffer();
+    	}
+				
+			// from UART 2
 			 if (RX2_FLAG_END_LINE == 1) 
 				{
     		// Reset END_LINE Flag
@@ -604,33 +656,22 @@ int main(void)
     		USART2_Send(RX_BUF2); // no effect
     		USART2_Send(":\r\n"); // This command does not wait for the finish of the sending of buffer. It just write to buffer new information and restart sending via DMA.
 
-    		if (strncmp(RX_BUF2, "ON\r", 3) == 0) 
+				USART1_Send(RX_BUF2);
+				if (bDeviceState == CONFIGURED)
+				{
+					CDC_Send_DATA ((uint8_t*)RX_BUF2,RXi2);
+				}
+		
+				/*	if (strncmp(RX_BUF2, "ON\r", 3) == 0) 
 				{
     			USART2_Send("THIS IS A COMMAND \"ON\"!!!\r\n");
     			Led_ON();
-    		}
-
-    		if (strncmp(RX_BUF2, "OFF\r", 4) == 0) 
-				{
-    			USART2_Send("THIS IS A COMMAND \"OFF\"!!!\r\n");
-    			Led_OFF();
-    		}
-
+    		}*/
     		clear_RXBuffer2();
     	}
 				
-    		sprintf(buffer, "\r\n1=%d : 2=%d : 3=%d : 4=%d\r\n", ADCBuffer[0], ADCBuffer[1], ADCBuffer[2], ADCBuffer[3]);
-			//sprintf(buffer, "$%d, %d, %d, %d, %d, %d;", ADCBuffer[0]-2000, ADCBuffer[1]-2000, ADCBuffer[2]-2000, ADCBuffer[3]-2000, (ADCBuffer[1]+ADCBuffer[2])/2-2000, ADCBuffer[2]/ADCBuffer[3]);
-    	USART1_Send(buffer);
-			USART2_Send(buffer);
-
-
-	//----------
-	if (bDeviceState == CONFIGURED)
-    {
-		 CDC_Send_DATA ((uint8_t*)buffer,40);
-			for(int i = 0; i<2000; i++){}
-	}
+			// from USB
+				
 		
 	if (bDeviceState == CONFIGURED)
     {
@@ -647,10 +688,14 @@ int main(void)
     	  }*/
 
     	  // Echo
-    	  if (packet_sent == 1) {
+    	  if (packet_sent == 1) 
+				{
     		  CDC_Send_DATA ((uint8_t*)Receive_Buffer,Receive_length);
     	  }
 
+				USART1_Send(Receive_Buffer);
+				USART2_Send(Receive_Buffer);
+				
     	  Receive_length = 0;
       }
     }

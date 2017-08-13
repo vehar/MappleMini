@@ -1,4 +1,4 @@
-﻿/**
+/**
   ******************************************************************************
   * @file    hw_config.h
   * @author  MCD Application Team
@@ -43,6 +43,7 @@
 #define LED_ON                0xF0
 #define LED_OFF               0xFF
 
+#define USART_RX_DATA_SIZE   8192 //2048
 /* Exported functions ------------------------------------------------------- */
 void Set_System(void);
 void Set_USBClock(void);
@@ -54,6 +55,8 @@ void Get_SerialNum(void);
 void LCD_Control(void);
 uint32_t CDC_Send_DATA (uint8_t *ptrBuffer, uint8_t Send_length);
 uint32_t CDC_Receive_DATA(void);
+
+void Handle_USBAsynchXfer (void);
 /* External variables --------------------------------------------------------*/
 
 #endif  /*__HW_CONFIG_H*/
